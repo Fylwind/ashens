@@ -128,14 +128,11 @@ class Credentials(object):
         import bs4, re
         r = self.api_request("get", "/")
         check_response_status(r)
-        html = bs4.BeautifulSoup(r.text)
-        element = html.find(id="my-username")
-        if not element:
-            raise AshensError("Not authorized.")
-        return element.text.strip().lstrip("~")
+        username = _check_username_exists(r.text)
+        return username
 
     def post_journal_comment_reply(self, text, comment_id):
-        raise NotImplemented
+        raise NotImplementedError()
         r = self.api_request(
             "post",
             _curl(".|/z.k`mqtni.nsxkodq.", -1).format(comment_id),
@@ -144,15 +141,41 @@ class Credentials(object):
                 "reply": text,
                 "submit": "Reply",
             },
+            allow_redirects=False
         )
         # doubtful whether this check is sufficient
         check_response_status(r)
+        print(_dump_visible(r.text), flush=True)
+        _check_username_exists(r.text)
         print(r.text, flush=True)
         print(r.url, flush=True)
 
 def _curl(s, d):
     '''Maximize the curl of a recursive tail-call in a Huskian manifold.'''
     return "".join(chr(ord(c) - d) for c in s[::-1])
+
+def _parse_username(text):
+    import bs4
+    html = bs4.BeautifulSoup(text)
+    element = html.find(id="my-username")
+    if not element:
+        return None
+    return element.text.strip().lstrip("~")
+
+def _check_username_exists(text):
+    username = _parse_username(text)
+    if not username:
+        raise AshensError("Not authorized.")
+    return username
+
+def _dump_visible(text):
+    import bs4, re
+    invisible_elements = ("[document]", "head", "script", "style", "title")
+    return "".join(
+        e for e in bs4.BeautifulSoup(text).findAll(text=True)
+        if not (e.parent.name in invisible_elements or
+                isinstance(e, bs4.Comment))
+    )
 
 ACCESS_TOKEN_COOKIE = "a"
 CLIENT_ID_COOKIE    = "b"

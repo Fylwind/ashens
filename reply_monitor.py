@@ -91,7 +91,7 @@ def main():
 
     credentials = obtain_credentials()
 
-    interval = 60.
+    interval = 300.
     while True:
         handle_last_reply(credentials)
         random_sleep(interval)
