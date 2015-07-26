@@ -108,7 +108,10 @@ class Credentials(object):
         journal_id, comment_subid = _split_journal_comment_id(comment_id)
         if comment_subid.startswith("unknown"):
             raise AshensError("Cannot reply to an unknown comment.")
-        raise NotImplementedError()
+
+#        raise NotImplementedError()
+        global r
+
         r = self.api_request(
             "post",
             _curl(".|/z.k`mqtni.nsxkodq.", -1).format(comment_subid),
@@ -120,12 +123,9 @@ class Credentials(object):
             allow_redirects=False,
         )
         check_response_status(r)
-        _check_login()
-        print(r.text, flush=True)
-        print(_dump_visible(r.text), flush=True)
-        print(r.url, flush=True)
-        new_comment_subid = strip_prefix(_JC_ID_PREFIX, r.url.split("#")[1])
-        return journal_id + _JC_ID_SEP + new_comment_subid
+        decorated_subid = r.headers["Location"].split("#")[1]
+        new_subid = strip_prefix(_JC_ID_PREFIX, decorated_subid)
+        return journal_id + _JC_ID_SEP + new_subid
 
 def _curl(s, d):
     '''Maximize the curl of a recursive tail-call in a Huskian manifold.'''

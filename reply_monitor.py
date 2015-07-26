@@ -39,9 +39,7 @@ def obtain_credentials():
     save_credentials(credentials.__dict__)
     return credentials
 
-def find_next_comments(credentials, comment_id):
-    journal_id = ashens.journal_id_from_comment_id(comment_id)
-    comments = credentials.get_journal_comments(journal_id)["comments"]
+def find_replies(comments, comment_id):
     comment = comments[comment_id]
     replies = comment["replies"]
     # if at nesting limit, search siblings; otherwise search children
@@ -55,19 +53,54 @@ def find_next_comments(credentials, comment_id):
         return [comments[c] for c in replies]
     return []
 
-def check_for_replies(credentials, db):
-    comment_id = db["last_comment_id"]
-    replies = [c for c in find_next_comments(credentials, comment_id)
-               if "content" in c
-               and c["content"] == db["content"]
-               and c["username"].lower() == db["username"].lower()]
+def find_reply_where(comments, comment_id, pred):
+    replies = tuple(filter(pred, find_replies(comments, comment_id)))
     if not replies:
-        print("No reply yet", flush=True)
         return
-    comment_id = replies[0]["id"]
-    comment_id = credentials.reply_journal_comment(db["content"], comment_id)
-#    comment_id = find_next_comment(credentials, comment_id)
-    db["last_comment_id"] = comment_id
+    return replies[0]
+
+def comment_predicate(content, username):
+    return lambda c: ("content" in c and
+                      c["content"] == content and
+                      c["username"].lower() == username.lower())
+
+def find_latest(comments, comment, preds):
+    '''Continue down the chain of replies, verifying with the cyclic sequence
+    of preds.'''
+    latest_comment = comment
+    while True:
+        for pred in preds:
+            comment = find_reply_where(comments, comment["id"], pred)
+            if not comment:
+                return latest_comment
+        latest_comment = comment
+    return latest_comment
+
+def check_for_replies(credentials, db):
+    username = credentials.get_username()
+    last_id = db["last_comment_id"]
+    journal_id = ashens.journal_id_from_comment_id(last_id)
+    comments = credentials.get_journal_comments(journal_id)["comments"]
+    last = comments[last_id]
+
+    # make sure we are looking at the right tweet
+    assert ("content" in last and
+            last["content"] == db["content"] and
+            last["username"].lower() == username.lower())
+
+    # skip to the latest if we missed any
+    theirs_predicate = comment_predicate(db["content"], db["username"])
+    mine_predicate   = comment_predicate(db["content"], username)
+    last = find_latest(comments, last, [theirs_predicate, mine_predicate])
+
+    reply = find_reply_where(comments, last["id"], theirs_predicate)
+    if not reply:
+        print("No reply yet", flush=True)
+        db["last_comment_id"] = last["id"]
+        return
+
+    new = credentials.reply_journal_comment(db["content"], reply["id"])
+    db["last_comment_id"] = new["id"]
 
 def random_sleep(mean):
     import random, time
