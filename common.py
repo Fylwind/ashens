@@ -58,13 +58,26 @@ def capture_args(*args, **kwargs):
 def is_nonempty_str(s):
     return isinstance(s, str) and s
 
-def dict_merge(d1, d2):
-    '''Merge two dicts and returns the result.  The original dicts are
-    unchanged.  Note that this operation is biased: if a key exists in both
-    dicts, the one in the right dict is chosen.'''
-    d = dict(d1)
-    d.update(d2)
-    return d
+def strip_prefix(prefix, s):
+    if s.startswith(prefix):
+        return s[len(prefix):]
+    return s
+
+def parse_percentage(s):
+    s = s.strip()
+    if not s.endswith("%"):
+        return float(s)
+    s = s[:-1]
+    return float(s) / 100.
+
+def dict_merge(*dicts):
+    '''Merge the dicts and return the result.  The original dicts are
+    unchanged.  Note that this operation is biased: if a key exists in
+    multiple dicts, the one in the rightmost dict is chosen.'''
+    m = {}
+    for d in dicts:
+        m.update(d)
+    return m
 
 def dict_get_or_acquire(dict, name, acquire_func, validate_func=lambda _: True):
     '''Obtain the value with a given key from the dict if it exists,
@@ -79,13 +92,6 @@ def dict_get_or_acquire(dict, name, acquire_func, validate_func=lambda _: True):
         x = acquire_func()
         dict[name] = x
     return x
-
-def parse_percentage(s):
-    s = s.strip()
-    if not s.endswith("%"):
-        return float(s)
-    s = s[:-1]
-    return float(s) / 100.
 
 def json_load_file(filename, fallback=None, json_args={}, **open_args):
     import json
@@ -107,4 +113,9 @@ def json_dumps(data, **kwargs):
     import json
     return json.dumps(data, **dict_merge(JSON_FORMAT, kwargs))
 
-JSON_FORMAT = {"sort_keys": True, "indent": 4, "separators": (',', ': ')}
+JSON_FORMAT = {
+    "ensure_ascii": False,
+    "indent": 4,
+    "separators": (',', ': '),
+    "sort_keys": True,
+}
