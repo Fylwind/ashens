@@ -99,8 +99,8 @@ def check_for_replies(credentials, db):
         db["last_comment_id"] = last["id"]
         return
 
-    new = credentials.reply_journal_comment(db["content"], reply["id"])
-    db["last_comment_id"] = new["id"]
+    new_id = credentials.reply_journal_comment(db["content"], reply["id"])
+    db["last_comment_id"] = new_id
 
 def random_sleep(mean):
     import random, time
