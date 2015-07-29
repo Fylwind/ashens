@@ -11,6 +11,6 @@ setup(
     install_requires=[
         "beautifulsoup4",
         "dateutil",
-        "requests",
+        "requests >= 0.13.2",
     ],
 )
