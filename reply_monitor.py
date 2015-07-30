@@ -2,6 +2,7 @@
 from __future__ import print_function, unicode_literals
 from common import *
 import ashens
+import requests
 
 class UserError(Exception):
     pass
@@ -115,7 +116,10 @@ def main():
     interval = 300.
     while True:
         reply_monitor_db = json_load_file(REPLY_MONITOR_DB_FILENAME)
-        check_for_replies(credentials, reply_monitor_db)
+        try:
+            check_for_replies(credentials, reply_monitor_db)
+        except requests.exceptions.ConnectionError as e:
+            logging.error(str(e))
         json_dump_file(REPLY_MONITOR_DB_FILENAME, reply_monitor_db)
         random_sleep(interval)
 
