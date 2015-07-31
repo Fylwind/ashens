@@ -7,6 +7,18 @@ import requests
 class UserError(Exception):
     pass
 
+def random_discrete_distribution(distribution):
+    import random
+    distribution = tuple(distribution)  # prevent it from being changed
+    r = random.random() * sum(p for _, p in distribution)
+    cumulative = 0.
+    for reply, probability in distribution:
+        cumulative += probability
+        if r < cumulative:
+            return reply
+    if distribution:
+        return distribution[-1][0]
+
 def prompt_login_info():
     import getpass, sys
     print("Authorization required.")
@@ -60,10 +72,17 @@ def find_reply_where(comments, comment_id, pred):
         return
     return replies[0]
 
-def comment_predicate(content, username):
+def generate_reply(reply_matrix, content):
+    candidates = reply_matrix.get(content, None)
+    if candidates is None:
+        return
+    return random_discrete_distribution(candidates.items())
+
+def comment_predicate(reply_matrix, usernames):
+    usernames = set(x.lower() for x in usernames)
     return lambda c: ("content" in c and
-                      c["content"] == content and
-                      c["username"].lower() == username.lower())
+                      generate_reply(reply_matrix, c["content"]) and
+                      c["username"].lower() in usernames)
 
 def find_latest(comments, comment, preds):
     '''Continue down the chain of replies, verifying with the cyclic sequence
@@ -78,29 +97,28 @@ def find_latest(comments, comment, preds):
     return latest_comment
 
 def check_for_replies(credentials, db):
-    username = credentials.get_username()
+    username = credentials.get_username().lower()
     last_id = db["last_comment_id"]
     journal_id = ashens.journal_id_from_comment_id(last_id)
     comments = credentials.get_journal_comments(journal_id)["comments"]
     last = comments[last_id]
 
+    # for filtering tweets
+    predicate = comment_predicate(db["reply_matrix"],
+                                  tuple(db["participants"]) + (username,))
+
     # make sure we are looking at the right tweet
-    assert ("content" in last and
-            last["content"] == db["content"] and
-            last["username"].lower() == username.lower())
+    assert predicate(last)
 
-    # skip to the latest if we missed any
-    theirs_predicate = comment_predicate(db["content"], db["username"])
-    mine_predicate   = comment_predicate(db["content"], username)
-    last = find_latest(comments, last, [theirs_predicate, mine_predicate])
-
-    reply = find_reply_where(comments, last["id"], theirs_predicate)
-    if not reply:
+    # skip to the latest
+    latest = find_latest(comments, last, [predicate])
+    if not latest or latest["username"].lower() == username:
         print("No reply yet", flush=True)
-        db["last_comment_id"] = last["id"]
         return
 
-    new_id = credentials.reply_journal_comment(db["content"], reply["id"])
+    reply = generate_reply(db["reply_matrix"], latest["content"])
+    new_id = credentials.reply_journal_comment(reply, latest["id"])
+    print("Replied: " + reply, flush=True)
     db["last_comment_id"] = new_id
 
 def random_sleep(mean):
